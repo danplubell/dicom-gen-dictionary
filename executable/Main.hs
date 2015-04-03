@@ -1,6 +1,6 @@
 module Main (main) where
 
-import qualified Dicom.Gen.Dictionary
+import qualified DICOM.Gen.Dictionary
 
 main :: IO ()
-main = Dicom.Gen.Dictionary.main
+main = DICOM.Gen.Dictionary.main

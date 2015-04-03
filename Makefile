@@ -25,7 +25,7 @@ hpc:
 	# tmp/hpc_index.html
 
 install:
-	cabal sandbox init
+	cabal sandbox init --sandbox  /Users/cerdep/Documents/haskell-workspace/dicom/.cabal-sandbox
 	cabal install --enable-benchmarks --enable-tests --jobs --only-dependencies --reorder-goals
 
 repl:
