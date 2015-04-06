@@ -39,7 +39,8 @@ library
         Haskell2010
     exposed-modules:
         DICOM.Gen.Dictionary
-        -- HASKELETON: New.Module
+        DICOM.Gen.Utilities
+     -- HASKELETON: New.Module
     ghc-options:
         -Wall
     ghc-prof-options:
