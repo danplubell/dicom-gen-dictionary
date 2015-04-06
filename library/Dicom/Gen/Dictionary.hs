@@ -16,23 +16,25 @@ main = do
          else
              do
                 houtf <- openBinaryFile outf WriteMode
-                
-                de1 <- parseDictionaryFile inf1
-                de2 <- parseDictionaryFile inf2
+                hinf1 <- openBinaryFile inf1 ReadMode
+                hinf2 <- openBinaryFile inf2 ReadMode
+                de1 <- parseDictionaryFile hinf1
+                de2 <- parseDictionaryFile hinf2
                 hPutStr houtf (show $ D.Dictionary $ de1 ++ de2)
                 hClose houtf
+                hClose hinf1
+                hClose hinf2
 
-parseDictionaryFile::FilePath->IO [D.DictionaryElement]
-parseDictionaryFile fp  = do
-                            hinf <- openBinaryFile fp ReadMode
-                            c1 <- hGetContents hinf
+parseDictionaryFile::Handle->IO [D.DictionaryElement]
+parseDictionaryFile h  = do
+                            c1 <- hGetContents h
                             case  xmlParse' "ParseDicomDictionary" c1 of
-                               Left x' -> do hClose hinf
-                                             error $  "An error occurred while parsing: " ++ x' ++ "[" ++ fp ++ "]"
-                               Right y -> do hClose hinf
+                               Left x' -> error $  "An error occurred while parsing: " ++ x' ++ "[" ++ show h ++ "]"
+                               Right y -> do 
                                              let content' = getContent y
                                              let part = unpackval $ head (getPart content')
-                                             return $ getElements (getChapter part) (getTable part)  content'
+                                             return $ getElements part content'
+--                                             return $ getElements (getChapter part) (getTable part)  content'
                             
                 
 getContent::Document Posn ->Content Posn
@@ -53,6 +55,35 @@ getTable part = case part of
                      "PS3.6"   -> "table_6-1"
                      _ -> error "Unknown part: " ++ part
 
+getChapterFilter::String->CFilter Posn
+getChapterFilter part = case part of
+                           "PS3.7" ->  tag "tr"
+                                       `o` children
+                                       `o` tag "tbody"
+                                       `o` children
+                                       `o` attrval ( N "xml:id", AttValue [Left (getTable part)])
+                                       `o` tag "table"
+                                       `o` children
+                                       `o` attrval ( N "xml:id", AttValue [Left "sect_E.1"])
+                                       `o` tag "section"
+                                       `o` children
+                                       `o` attrval (N "xml:id", AttValue [Left (getChapter part)])
+                                       `o` tag "chapter"
+                                       `o` children
+                                       `o` tag "book"
+                           "PS3.6" -> tag "tr"
+                                       `o` children
+                                       `o` tag "tbody"
+                                       `o` children
+                                       `o` attrval ( N "xml:id", AttValue [Left (getTable part)])
+                                       `o` tag "table"
+                                       `o` children
+                                       `o` attrval (N "xml:id", AttValue [Left (getChapter part)])
+                                       `o` tag "chapter"
+                                       `o` children
+                                       `o` tag "book"
+                           _       ->  error $  "Unknown part: " ++ part            
+ 
 -------- Filters ----------------
 --book::CFilter Posn
 --book = tag "book"
@@ -71,6 +102,7 @@ getTable part = case part of
 --               tag "table" `o` children `o` chapterFilter chapter
 
 --find the element rows from the chapter table
+{-                           
 elementRows ::String -> String -> CFilter Posn
 elementRows chapter tablename = tag "tr"
                                 `o` children
@@ -87,9 +119,25 @@ elementRows chapter tablename = tag "tr"
                                 --chapters
                                 --elementTable chapter tablename
 
+elementRows7 ::String -> String -> CFilter Posn
+elementRows7 chapter tablename = tag "tr"
+                                `o` children
+                                `o` tag "tbody"
+                                `o` children
+                                `o` attrval ( N "xml:id", AttValue [Left tablename])
+                                `o` tag "table"
+                                `o` children
+                                `o` attrval (N "xml:id", AttValue [Left chapter])
+                                `o` tag "chapter"
+                                `o` children
+                                `o` tag "book"
+-}
 --get all the elements
-getElements::String -> String -> Content Posn -> [D.DictionaryElement]
-getElements chapter tablename c = map buildElement (elementRows chapter tablename c)
+getElements::String -> Content Posn -> [D.DictionaryElement]
+getElements part c = map buildElement ((getChapterFilter part) c)
+--getElements::String -> String -> Content Posn -> [D.DictionaryElement]
+--getElements chapter tablename c = map buildElement (elementRows chapter tablename c)
+
 
 --The children of the td element contain the values of the dictionary elements
 tdFilter::CFilter Posn
@@ -131,9 +179,9 @@ parseTag s = case parse tagParser "tagparser" s of
 tagParser :: Parser (String,String)
 tagParser = do
   _<-char '('
-  group <- many1 anyChar
+  group <- many1 alphaNum
   _ <-char ','
-  element' <- many1 anyChar
+  element' <- many1 alphaNum
   _ <-char ')'
   return  (group,  element')
 
