@@ -10,134 +10,82 @@ import System.IO
 
 main :: IO ()
 main = do
-         (inf1,inf2, outf)<-fix3Args
-         if inf1 == "-" || inf2 == "-" ||outf == "-"
-         then error "An input file or output file name was not provided"
-         else
-             do
-                houtf <- openBinaryFile outf WriteMode
-                hinf1 <- openBinaryFile inf1 ReadMode
-                hinf2 <- openBinaryFile inf2 ReadMode
-                de1 <- parseDictionaryFile hinf1
-                de2 <- parseDictionaryFile hinf2
-                hPutStr houtf (show $ D.Dictionary $ de1 ++ de2)
-                hClose houtf
-                hClose hinf1
-                hClose hinf2
+  (inf1,inf2, outf)<-fix3Args
+  if inf1 == "-" || inf2 == "-" ||outf == "-"
+  then error "An input file or output file name was not provided"
+  else
+    do
+      houtf <- openBinaryFile outf WriteMode
+      hinf1 <- openBinaryFile inf1 ReadMode
+      hinf2 <- openBinaryFile inf2 ReadMode
+      de1 <- parseDictionaryFile hinf1
+      de2 <- parseDictionaryFile hinf2
+      hPutStr houtf (show $ D.Dictionary $ de1 ++ de2)
+      hClose houtf
+      hClose hinf1
+      hClose hinf2
 
+--Parse a DocBook xml file into a list of elements
+--Part 6 contains 3 tables that need to be parsed
+--Part 7 contains 1 table that nees to be parsed
 parseDictionaryFile::Handle->IO [D.DictionaryElement]
 parseDictionaryFile h  = do
-                            c1 <- hGetContents h
-                            case  xmlParse' "ParseDicomDictionary" c1 of
-                               Left x' -> error $  "An error occurred while parsing: " ++ x' ++ "[" ++ show h ++ "]"
-                               Right y -> do 
-                                             let content' = getContent y
-                                             let part = unpackval $ head (getPart content')
-                                             return $ getElements part content'
---                                             return $ getElements (getChapter part) (getTable part)  content'
+  c1 <- hGetContents h
+  case  xmlParse' "ParseDicomDictionary" c1 of
+    Left x' -> error $  "An error occurred while parsing: " ++ x' ++ "[" ++ show h ++ "]"
+    Right y -> do 
+      let content' = getContent y
+      let part = unpackval $ head (getPart content')
+      case part of  
+        "PS3.6" -> return $ getElements part "chapter_6" "table_6-1" content' --parse the three chapters and concatenate them
+                         ++ getElements part "chapter_7" "table_7-1" content'
+                         ++ getElements part "chapter 8" "table_8-1" content'
+        "PS3.7" -> return $ getElements part "chapter_E" "table_E.1-1" content'
+        _       -> error $ "Unknown part: " ++ part 
                             
                 
 getContent::Document Posn ->Content Posn
 getContent (Document _ _ e _) = CElem e noPos
 
+--Filter for getting the part name
 getPart ::CFilter Posn
 getPart  = tag "title" `o` children `o` tag "book"  
 
-getChapter::String -> String
-getChapter part = case part of
-                       "PS3.7" -> "chapter_E"
-                       "PS3.6" -> "chapter_6" 
-                       _  -> error "Unknown part: " ++ part
-  
-getTable::String -> String
-getTable part = case part of
-                     "PS3.7"   -> "table_E.1-1"
-                     "PS3.6"   -> "table_6-1"
-                     _ -> error "Unknown part: " ++ part
-
-getChapterFilter::String->CFilter Posn
-getChapterFilter part = case part of
-                           "PS3.7" ->  tag "tr"
-                                       `o` children
-                                       `o` tag "tbody"
-                                       `o` children
-                                       `o` attrval ( N "xml:id", AttValue [Left (getTable part)])
-                                       `o` tag "table"
-                                       `o` children
-                                       `o` attrval ( N "xml:id", AttValue [Left "sect_E.1"])
-                                       `o` tag "section"
-                                       `o` children
-                                       `o` attrval (N "xml:id", AttValue [Left (getChapter part)])
-                                       `o` tag "chapter"
-                                       `o` children
-                                       `o` tag "book"
-                           "PS3.6" -> tag "tr"
-                                       `o` children
-                                       `o` tag "tbody"
-                                       `o` children
-                                       `o` attrval ( N "xml:id", AttValue [Left (getTable part)])
-                                       `o` tag "table"
-                                       `o` children
-                                       `o` attrval (N "xml:id", AttValue [Left (getChapter part)])
-                                       `o` tag "chapter"
-                                       `o` children
-                                       `o` tag "book"
-                           _       ->  error $  "Unknown part: " ++ part            
+--Creates a filter for the chapters of each part                     
+getChapterFilter::String->String->String->CFilter Posn
+getChapterFilter part chapter table =
+  case part of
+    "PS3.7" ->
+       tag "tr"
+       `o` children
+       `o` tag "tbody"
+       `o` children
+       `o` attrval ( N "xml:id", AttValue [Left table])
+       `o` tag "table"
+       `o` children
+       `o` attrval ( N "xml:id", AttValue [Left "sect_E.1"])
+       `o` tag "section"
+       `o` children
+       `o` attrval (N "xml:id", AttValue [Left chapter])
+       `o` tag "chapter"
+       `o` children
+       `o` tag "book"
+    "PS3.6" -> tag "tr"
+       `o` children
+       `o` tag "tbody"
+       `o` children
+       `o` attrval ( N "xml:id", AttValue [Left table])
+       `o` tag "table"
+       `o` children
+       `o` attrval (N "xml:id", AttValue [Left chapter])
+       `o` tag "chapter"
+       `o` children
+       `o` tag "book"
+    _       ->  error $  "Unknown part: " ++ part            
  
--------- Filters ----------------
---book::CFilter Posn
---book = tag "book"
-
---get the chapters
---chapters::CFilter Posn
---chapters = tag "chapter" `o`  children `o` book
-
---find the specific chapter
---chapterFilter  :: String ->CFilter Posn
---chapterFilter chapter  = attrval (N "xml:id", AttValue [Left chapter])  `o` chapters
-
---find the element table
---elementTable::String-> String -> CFilter Posn
---elementTable chapter tablename = attrval( N "xml:id", AttValue [Left tablename]) `o`
---               tag "table" `o` children `o` chapterFilter chapter
-
---find the element rows from the chapter table
-{-                           
-elementRows ::String -> String -> CFilter Posn
-elementRows chapter tablename = tag "tr"
-                                `o` children
-                                `o` tag "tbody"
-                                `o` children
-                                `o` attrval ( N "xml:id", AttValue [Left tablename])
-                                `o` tag "table"
-                                `o` children
-                                `o` attrval (N "xml:id", AttValue [Left chapter])
-                                `o` tag "chapter"
-                                `o` children
-                                `o` tag "book"
-                                --book
-                                --chapters
-                                --elementTable chapter tablename
-
-elementRows7 ::String -> String -> CFilter Posn
-elementRows7 chapter tablename = tag "tr"
-                                `o` children
-                                `o` tag "tbody"
-                                `o` children
-                                `o` attrval ( N "xml:id", AttValue [Left tablename])
-                                `o` tag "table"
-                                `o` children
-                                `o` attrval (N "xml:id", AttValue [Left chapter])
-                                `o` tag "chapter"
-                                `o` children
-                                `o` tag "book"
--}
 --get all the elements
-getElements::String -> Content Posn -> [D.DictionaryElement]
-getElements part c = map buildElement ((getChapterFilter part) c)
---getElements::String -> String -> Content Posn -> [D.DictionaryElement]
---getElements chapter tablename c = map buildElement (elementRows chapter tablename c)
-
+getElements::String->String -> String -> Content Posn -> [D.DictionaryElement]
+getElements part chapter table c = map buildElement (( getChapterFilter part chapter table) c)
 
 --The children of the td element contain the values of the dictionary elements
 tdFilter::CFilter Posn
@@ -159,15 +107,15 @@ buildElement c = buildDictElement $ map parseElement (tdFilter c)
 --Parses out the individual element values
 buildDictElement::[String] -> D.DictionaryElement
 buildDictElement xs  =
-                     D.DictionaryElement{
-                                          D.dicomGroup = fst $ parseTag (head xs)
-                                        , D.dicomElement = snd $ parseTag (head xs)
-                                        , D.elementName = xs!!1
-                                        , D.elementKeyWord = xs!!2
-                                        , D.vr = xs!!3
-                                        , D.vm = xs!!4
-                                        , D.elementVersion = xs!!5
-                                       }
+  D.DictionaryElement{
+     D.dicomGroup = fst $ parseTag (head xs)
+   , D.dicomElement = snd $ parseTag (head xs)
+   , D.elementName = xs!!1
+   , D.elementKeyWord = xs!!2
+   , D.vr = xs!!3
+   , D.vm = xs!!4
+   , D.elementVersion = xs!!5
+  }
 
 --Convert dicom tag in string form (0000,0000) into a tuple
 parseTag::String -> (String,String)
