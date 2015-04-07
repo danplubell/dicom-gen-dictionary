@@ -1,5 +1,7 @@
 # dicom-gen-dictionary
 
+Experimental utility that will generate a dictionary file from the DocBook xml files for Part 6 and Part 7 of the DICOM standard.
+
 ``` sh
 # Update to latest version of Cabal.
 cabal update
