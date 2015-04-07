@@ -7,6 +7,7 @@ import Text.XML.HaXml.Parse
 import Text.XML.HaXml.Posn
 import Text.ParserCombinators.Parsec hiding( spaces)
 import System.IO
+--import Control.Exception
 
 main :: IO ()
 main = do
@@ -15,6 +16,11 @@ main = do
   then error "An input file or output file name was not provided"
   else
     do
+      de1 <- withBinaryFile inf1 ReadMode parseDictionaryFile
+      de2 <- withBinaryFile inf2 ReadMode parseDictionaryFile
+      withBinaryFile outf WriteMode (\handle -> hPutStr handle (show $ D.Dictionary $ de1 ++ de2))
+         
+{-
       houtf <- openBinaryFile outf WriteMode
       hinf1 <- openBinaryFile inf1 ReadMode
       hinf2 <- openBinaryFile inf2 ReadMode
@@ -24,7 +30,7 @@ main = do
       hClose houtf
       hClose hinf1
       hClose hinf2
-
+-}
 --Parse a DocBook xml file into a list of elements
 --Part 6 contains 3 tables that need to be parsed
 --Part 7 contains 1 table that nees to be parsed
