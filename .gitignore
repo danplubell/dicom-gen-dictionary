@@ -2,3 +2,5 @@
 /.hpc/
 /cabal.sandbox.config
 /dist/
+/.stack-work/
+.DS_Store
